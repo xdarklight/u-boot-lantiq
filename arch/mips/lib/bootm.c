@@ -27,6 +27,9 @@
 #include <u-boot/zlib.h>
 #include <asm/byteorder.h>
 #include <asm/addrspace.h>
+#include <fdt.h>
+#include <libfdt.h>
+#include <fdt_support.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -43,7 +46,36 @@ static int linux_env_idx;
 static void linux_params_init(ulong start, char *commandline);
 static void linux_env_set(char *env_name, char *env_val);
 
-static void boot_prep_linux(bootm_headers_t *images)
+static ulong arch_get_sp(void)
+{
+	ulong ret;
+
+	asm("move %0, $sp" : "=r"(ret) : );
+	return ret;
+}
+
+void arch_lmb_reserve(struct lmb *lmb)
+{
+	ulong sp;
+
+	/*
+	 * Booting a (Linux) kernel image
+	 *
+	 * Allocate space for command line and board info - the
+	 * address should be as high as possible within the reach of
+	 * the kernel (see CONFIG_SYS_BOOTMAPSZ settings), but in unused
+	 * memory, which means far enough below the current stack
+	 * pointer.
+	 */
+	sp = arch_get_sp();
+	debug("## Current stack ends at 0x%08lx\n", sp);
+
+	/* adjust sp by 4K to be safe */
+	sp -= 4096;
+	lmb_reserve(lmb, sp, CONFIG_SYS_SDRAM_BASE + gd->ram_size - sp);
+}
+
+static void boot_prep_linux_legacy(bootm_headers_t *images)
 {
 	char *commandline = getenv("bootargs");
 	char env_buf[12];
@@ -83,22 +115,103 @@ static void boot_prep_linux(bootm_headers_t *images)
 		linux_env_set("eth1addr", cp);
 }
 
+#ifdef CONFIG_OF_LIBFDT
+static ulong boot_get_ft_len(bootm_headers_t *images)
+{
+	return images->ft_len;
+}
+
+static ulong boot_get_ft_addr(bootm_headers_t *images)
+{
+	return (ulong)images->ft_addr;
+}
+
+static int create_fdt(bootm_headers_t *images)
+{
+	ulong of_size = images->ft_len;
+	char **of_flat_tree = &images->ft_addr;
+	ulong *initrd_start = &images->initrd_start;
+	ulong *initrd_end = &images->initrd_end;
+	struct lmb *lmb = &images->lmb;
+	int ret;
+
+	boot_fdt_add_mem_rsv_regions(lmb, *of_flat_tree);
+
+	ret = boot_relocate_fdt(lmb, of_flat_tree, &of_size);
+	if (ret)
+		return ret;
+
+	fdt_chosen(*of_flat_tree, 1);
+	fdt_fixup_memory(*of_flat_tree, 0, gd->ram_size);
+	fdt_fixup_ethernet(*of_flat_tree);
+	fdt_initrd(*of_flat_tree, *initrd_start, *initrd_end, 1);
+
+#ifdef CONFIG_OF_BOARD_SETUP
+	ft_board_setup(*of_flat_tree, gd->bd);
+#endif
+
+	return 0;
+}
+
+static int boot_prep_linux_fdt(bootm_headers_t *images)
+{
+	if (!images->ft_len)
+		return -1;
+
+	debug("using: FDT\n");
+	if (create_fdt(images)) {
+		printf("FDT creation failed! hanging...");
+		hang();
+	}
+
+	return 0;
+}
+#else
+static inline ulong boot_get_ft_len(bootm_headers_t *images)
+{
+	return 0;
+}
+
+static inline ulong boot_get_ft_addr(bootm_headers_t *images)
+{
+	return 0;
+}
+
+static inline int boot_prep_linux_fdt(bootm_headers_t *images)
+{
+	return -1;
+}
+#endif /* CONFIG_OF_LIBFDT */
+
+static void boot_prep_linux(bootm_headers_t *images)
+{
+	int ret;
+
+	ret = boot_prep_linux_fdt(images);
+	if (!ret)
+		return;
+
+	boot_prep_linux_legacy(images);
+}
+
 static void boot_jump_linux(bootm_headers_t *images)
 {
-	void (*theKernel) (int, char **, char **, int *);
+	typedef void __noreturn (*kernel_entry_t)(ulong, ulong, ulong, ulong);
+	kernel_entry_t kernel = (kernel_entry_t) images->ep;
+	ulong ft_len;
 
-	/* find kernel entry point */
-	theKernel = (void (*)(int, char **, char **, int *))images->ep;
-
-	debug("## Transferring control to Linux (at address %08lx) ...\n",
-		(ulong) theKernel);
+	debug("## Transferring control to Linux (at address %p) ...\n", kernel);
 
 	bootstage_mark(BOOTSTAGE_ID_RUN_OS);
 
 	/* we assume that the kernel is in place */
 	printf("\nStarting kernel ...\n\n");
 
-	theKernel(linux_argc, linux_argv, linux_env, 0);
+	ft_len = boot_get_ft_len(images);
+	if (ft_len)
+		kernel(FDT_MAGIC, boot_get_ft_addr(images), 0, 0);
+	else
+		kernel(linux_argc, (ulong)linux_argv, (ulong)linux_env, 0);
 }
 
 int do_bootm_linux(int flag, int argc, char * const argv[],
