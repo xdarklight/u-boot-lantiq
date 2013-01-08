@@ -61,14 +61,25 @@
 #define CONFIG_LTQ_ADVANCED_CONSOLE
 #define CONFIG_BAUDRATE			115200
 #define CONFIG_CONSOLE_ASC		1
-#define CONFIG_CONSOLE_DEV		"ttyLTQ1"
+#define CONFIG_CONSOLE_DEV		"ttyLTQ0"
 
 /* Commands */
 #define CONFIG_CMD_PING
 
+/* Device tree */
+#define CONFIG_FIT
+#define CONFIG_OF_LIBFDT
+#define CONFIG_OF_BOARD_SETUP
+
 /* Pull in default board configs for Lantiq XWAY Danube */
 #include <asm/lantiq/config.h>
 #include <asm/arch/config.h>
+
+/* Compression */
+#define CONFIG_LZMA
+
+/* Auto boot */
+#define CONFIG_BOOTDELAY		2
 
 #define CONFIG_ENV_UPDATE_UBOOT_NOR					\
 	"update-uboot-nor=run load-uboot-norspl-lzo write-uboot-nor\0"
