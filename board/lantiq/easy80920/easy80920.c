@@ -137,3 +137,7 @@ void spi_cs_deactivate(struct spi_slave *slave)
 		break;
 	}
 }
+
+void ft_board_setup(void *blob, bd_t *bd)
+{
+}

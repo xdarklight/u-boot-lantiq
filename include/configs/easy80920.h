@@ -70,10 +70,15 @@
 #define CONFIG_LTQ_ADVANCED_CONSOLE
 #define CONFIG_BAUDRATE			115200
 #define CONFIG_CONSOLE_ASC		1
-#define CONFIG_CONSOLE_DEV		"ttyLTQ1"
+#define CONFIG_CONSOLE_DEV		"ttyLTQ0"
 
 /* Commands */
 #define CONFIG_CMD_PING
+
+/* Device tree */
+#define CONFIG_FIT
+#define CONFIG_OF_LIBFDT
+#define CONFIG_OF_BOARD_SETUP
 
 /* Pull in default board configs for Lantiq XWAY VRX200 */
 #include <asm/lantiq/config.h>
