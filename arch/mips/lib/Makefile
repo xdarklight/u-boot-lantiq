@@ -35,11 +35,7 @@ LGOBJS	:= $(addprefix $(obj),$(GLSOBJS))
 SOBJS-y	+=
 
 COBJS-y	+= board.o
-ifeq ($(CONFIG_QEMU_MIPS),y)
-COBJS-y	+= bootm_qemu_mips.o
-else
 COBJS-y	+= bootm.o
-endif
 
 SRCS	:= $(SOBJS-y:.o=.S) $(COBJS-y:.o=.c)
 OBJS	:= $(addprefix $(obj),$(SOBJS-y) $(COBJS-y))
