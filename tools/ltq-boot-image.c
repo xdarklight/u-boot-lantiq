@@ -45,15 +45,17 @@ struct args {
 	enum image_types type;
 	__u32		entry_addr;
 	loff_t		uboot_offset;
+	loff_t		tpl_offset;
 	unsigned int	page_size;
 	const char	*uboot_bin;
 	const char	*spl_bin;
+	const char	*tpl_bin;
 	const char	*out_bin;
 };
 
 static void usage_msg(const char *name)
 {
-	fprintf(stderr, "%s: [-h] -t type -e entry-addr [-x uboot-offset] [-p page-size] -u uboot-bin [-s spl-bin] -o out-bin\n",
+	fprintf(stderr, "%s: [-h] -t type -e entry-addr [-x uboot-offset] [-X tpl-offset] [-p page-size] -u uboot-bin [-s spl-bin] [-T spl-bin] -o out-bin\n",
 		name);
 	fprintf(stderr, " Image types:\n"
 			"  sfspl   - SPL + [compressed] U-Boot for SPI flash\n"
@@ -80,7 +82,7 @@ static int parse_args(int argc, char *argv[], struct args *arg)
 
 	memset(arg, 0, sizeof(*arg));
 
-	while ((opt = getopt(argc, argv, "ht:e:x:p:u:s:o:")) != -1) {
+	while ((opt = getopt(argc, argv, "ht:e:x:X:p:u:s:T:o:")) != -1) {
 		switch (opt) {
 		case 'h':
 			usage_msg(argv[0]);
@@ -94,14 +96,20 @@ static int parse_args(int argc, char *argv[], struct args *arg)
 		case 'x':
 			arg->uboot_offset = strtoul(optarg, NULL, 16);
 			break;
+		case 'X':
+			arg->tpl_offset = strtoul(optarg, NULL, 16);
+			break;
 		case 'p':
-			arg->page_size = strtoul(optarg, NULL, 10);
+			arg->page_size = strtoul(optarg, NULL, 0);
 			break;
 		case 'u':
 			arg->uboot_bin = optarg;
 			break;
 		case 's':
 			arg->spl_bin = optarg;
+			break;
+		case 'T':
+			arg->tpl_bin = optarg;
 			break;
 		case 'o':
 			arg->out_bin = optarg;
@@ -133,6 +141,16 @@ static int parse_args(int argc, char *argv[], struct args *arg)
 		goto parse_error;
 	}
 
+	if (arg->type == IMAGE_NANDSPL && !arg->tpl_bin) {
+		fprintf(stderr, "Missing TPL binary\n");
+		goto parse_error;
+	}
+
+	if (arg->type == IMAGE_NANDSPL && !arg->tpl_offset) {
+		fprintf(stderr, "Missing TPL offset\n");
+		goto parse_error;
+	}
+
 	if (arg->type == IMAGE_NANDSPL && !arg->uboot_offset) {
 		fprintf(stderr, "Missing U-Boot offset\n");
 		goto parse_error;
@@ -140,6 +158,11 @@ static int parse_args(int argc, char *argv[], struct args *arg)
 
 	if (arg->type == IMAGE_NANDSPL && !arg->page_size) {
 		fprintf(stderr, "Missing NAND page size\n");
+		goto parse_error;
+	}
+
+	if (arg->type == IMAGE_NANDSPL && arg->page_size != 2048) {
+		fprintf(stderr, "Only a NAND page size of 2048 is supported\n");
 		goto parse_error;
 	}
 
@@ -161,21 +184,7 @@ static __u32 build_nvb_command(unsigned cmdid, unsigned cmdflags)
 	return cpu_to_be32(cmd);
 }
 
-static int write_header(int fd, const void *hdr, size_t size)
-{
-	ssize_t n;
-
-	n = write(fd, hdr, size);
-	if (n != size) {
-		fprintf(stderr, "Cannot write header: %s\n",
-			strerror(errno));
-		return -1;
-	}
-
-	return 0;
-}
-
-static int write_nvb_dwnld_header(int fd, size_t size, __u32 addr)
+static ssize_t write_nvb_dwnld_header(int fd, size_t size, __u32 addr)
 {
 	__u32 hdr[3];
 
@@ -184,10 +193,10 @@ static int write_nvb_dwnld_header(int fd, size_t size, __u32 addr)
 	hdr[1] = cpu_to_be32(size + 4);
 	hdr[2] = cpu_to_be32(addr);
 
-	return write_header(fd, hdr, sizeof(hdr));
+	return write(fd, hdr, sizeof(hdr));
 }
 
-static int write_nvb_start_header(int fd, __u32 addr)
+static ssize_t write_nvb_start_header(int fd, __u32 addr)
 {
 	__u32 hdr[3];
 
@@ -195,28 +204,26 @@ static int write_nvb_start_header(int fd, __u32 addr)
 	hdr[1] = cpu_to_be32(4);
 	hdr[2] = cpu_to_be32(addr);
 
-	return write_header(fd, hdr, sizeof(hdr));
+	return write(fd, hdr, sizeof(hdr));
 }
 
-#if 0
-static int write_nvb_regcfg_header(int fd, __u32 addr)
+static ssize_t write_nvb_regcfg_header(int fd, size_t count)
 {
 	__u32 hdr[2];
 
 	hdr[0] = build_nvb_command(NVB_CMD_REGCFG, NVB_FLAG_SDBG |
 					NVB_FLAG_DBG);
-	hdr[1] = cpu_to_be32(addr);
+	hdr[1] = cpu_to_be32(count);
 
-	return write_header(fd, hdr, sizeof(hdr));
+	return write(fd, hdr, sizeof(hdr));
 }
-#endif
 
 static int open_input_bin(const char *name, void **ptr, size_t *size)
 {
 	struct stat sbuf;
 	int ret, fd;
 
-	fd = open(name, O_RDONLY | O_BINARY);
+	fd = open(name, O_RDONLY);
 	if (0 > fd) {
 		fprintf(stderr, "Cannot open %s: %s\n", name,
 			strerror(errno));
@@ -244,28 +251,17 @@ static int open_input_bin(const char *name, void **ptr, size_t *size)
 
 static void close_input_bin(int fd, void *ptr, size_t size)
 {
-	munmap(ptr, size);
-	close(fd);
-}
-
-static int copy_bin(int fd, void *ptr, size_t size)
-{
-	ssize_t n;
-
-	n = write(fd, ptr, size);
-	if (n != size) {
-		fprintf(stderr, "Cannot copy binary: %s\n", strerror(errno));
-		return -1;
+	if (fd >= 0) {
+		munmap(ptr, size);
+		close(fd);
 	}
-
-	return 0;
 }
 
 static int open_output_bin(const char *name)
 {
 	int fd;
 
-	fd = open(name, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0666);
+	fd = open(name, O_RDWR | O_CREAT | O_TRUNC, 0666);
 	if (0 > fd) {
 		fprintf(stderr, "Cannot open %s: %s\n", name,
 			strerror(errno));
@@ -275,90 +271,143 @@ static int open_output_bin(const char *name)
 	return fd;
 }
 
-static int pad_to_offset(int fd, loff_t offset)
+static int write_pad_bytes(int fd, __u8 val, size_t size)
 {
-	loff_t pos;
-	size_t size;
 	ssize_t n;
-	__u8 *buf;
+	size_t cnt;
+	__u8 buf[4];
 
-	pos = lseek(fd, 0, SEEK_CUR);
-	size = offset - pos;
+	memset(buf, val, sizeof(buf));
+	cnt = size / 4;
 
-	buf = malloc(size);
-	if (!buf) {
-		fprintf(stderr, "Failed to malloc buffer\n");
-		return -1;
+	while (cnt--) {
+		n = write(fd, buf, sizeof(buf));
+		if (n != sizeof(buf))
+			return -1;
 	}
 
-	memset(buf, 0xff, size);
-	n = write(fd, buf, size);
-	free(buf);
-
-	if (n != size) {
-		fprintf(stderr, "Failed to write pad bytes\n");
-		return -1;
+	cnt = size % 4;
+	if (cnt) {
+		n = write(fd, buf, cnt);
+		if (n != cnt)
+			return -1;
 	}
 
 	return 0;
 }
 
+static int pad_to_offset(int fd, __u8 val, size_t offset)
+{
+	size_t pos;
+
+	if (!offset)
+		return 0;
+
+	pos = lseek(fd, 0, SEEK_CUR);
+	if (offset < pos) {
+		fprintf(stderr, "Offset 0x%lx needs to be greater than 0x%lx\n",
+			offset, pos);
+		return -1;
+	}
+
+	return write_pad_bytes(fd, val, offset - pos);
+}
+
 static int create_spl_image(const struct args *arg)
 {
-	int out_fd, uboot_fd, spl_fd, ret = 0;
-	void *uboot_ptr, *spl_ptr;
-	size_t uboot_size, spl_size;
+	int out_fd, uboot_fd, spl_fd, tpl_fd, ret = 0;
+	void *uboot_ptr, *spl_ptr, *tpl_ptr;
+	size_t uboot_size, spl_size, tpl_size;
+	ssize_t n;
 
 	out_fd = open_output_bin(arg->out_bin);
-	if (0 > out_fd)
+	if (0 > out_fd) {
+		ret = -1;
 		goto err;
+	}
 
 	spl_fd = open_input_bin(arg->spl_bin, &spl_ptr, &spl_size);
-	if (0 > spl_fd)
+	if (0 > spl_fd) {
+		ret = -1;
 		goto err_spl;
+	}
+
+	if (arg->tpl_bin) {
+		tpl_fd = open_input_bin(arg->tpl_bin, &tpl_ptr, &tpl_size);
+		if (0 > tpl_fd) {
+			ret = -1;
+			goto err_tpl;
+		}
+	} else {
+		tpl_fd = -1;
+	}
 
 	uboot_fd = open_input_bin(arg->uboot_bin, &uboot_ptr, &uboot_size);
-	if (0 > uboot_fd)
+	if (0 > uboot_fd) {
+		ret = -1;
 		goto err_uboot;
+	}
 
-#if 0
-	ret = write_nvb_regcfg_header(out_fd, 0);
-	if (ret)
+	/* maybe optional because we do not write register values */
+	n = write_nvb_regcfg_header(out_fd, 0);
+	if (n == -1) {
+		ret = -1;
 		goto err_write;
-#endif
+	}
 
-	ret = write_nvb_dwnld_header(out_fd, spl_size, arg->entry_addr);
-	if (ret)
+	n = write_nvb_dwnld_header(out_fd, spl_size, arg->entry_addr);
+	if (n == -1) {
+		ret = -1;
 		goto err_write;
-#if 0
-	if (arg->page_size) {
-		ret = pad_to_offset(out_fd, arg->page_size);
+	}
+
+	n = write(out_fd, spl_ptr, spl_size);
+	if (n == -1) {
+		fprintf(stderr, "Failed to write u-boot image: %s\n",
+			strerror(errno));
+		ret = -1;
+		goto err_write;
+	}
+
+	n = write_nvb_start_header(out_fd, arg->entry_addr);
+	if (n == -1) {
+		ret = -1;
+		goto err_write;
+	}
+
+	if (arg->tpl_bin) {
+		ret = pad_to_offset(out_fd, 0xff, arg->tpl_offset);
 		if (ret)
 			goto err_write;
+
+		n = write(out_fd, tpl_ptr, tpl_size);
+		if (n == -1) {
+			fprintf(stderr, "Failed to write u-boot image: %s\n",
+				strerror(errno));
+			ret = -1;
+			goto err_write;
+		}
 	}
-#endif
-
-	ret = copy_bin(out_fd, spl_ptr, spl_size);
-	if (ret)
-		goto err_write;
-
-	ret = write_nvb_start_header(out_fd, arg->entry_addr);
-	if (ret)
-		goto err_write;
 
 	if (arg->uboot_offset) {
-		ret = pad_to_offset(out_fd, arg->uboot_offset);
+		ret = pad_to_offset(out_fd, 0xff, arg->uboot_offset);
 		if (ret)
 			goto err_write;
 	}
 
-	ret = copy_bin(out_fd, uboot_ptr, uboot_size);
-	if (ret)
+	n = write(out_fd, uboot_ptr, uboot_size);
+	if (n == -1) {
+		fprintf(stderr, "Failed to write u-boot image: %s\n",
+			strerror(errno));
+		ret = -1;
 		goto err_write;
+	}
 
 err_write:
 	close_input_bin(uboot_fd, uboot_ptr, uboot_size);
 err_uboot:
+	close_input_bin(tpl_fd, tpl_ptr, tpl_size);
+err_tpl:
 	close_input_bin(spl_fd, spl_ptr, spl_size);
 err_spl:
 	close(out_fd);
