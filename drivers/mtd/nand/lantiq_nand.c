@@ -5,7 +5,7 @@
  */
 
 #include <common.h>
-#include <linux/mtd/nand.h>
+#include <nand.h>
 #include <linux/compiler.h>
 #include <asm/arch/soc.h>
 #include <asm/arch/nand.h>
@@ -28,9 +28,16 @@
 #define NAND_CON_ALE_P		(1 << 2)
 #define NAND_CON_CSMUX		(1 << 1)
 #define NAND_CON_NANDM		(1 << 0)
+#define NAND_CON_LATCH_SHIFT	18
+#define NAND_CON_LATCH_ALL	(NAND_CON_LATCH_PRE | NAND_CON_LATCH_WP | \
+				NAND_CON_LATCH_SE | NAND_CON_LATCH_CS | \
+				NAND_CON_LATCH_ALE << NAND_CON_LATCH_SHIFT)
 
 #define NAND_WAIT_WR_C		(1 << 3)
+#define NAND_WAIT_RD_E		(1 << 2)
+#define NAND_WAIT_BY_E		(1 << 1)
 #define NAND_WAIT_RDBY		(1 << 0)
+#define NAND_WAIT_READY		(NAND_WAIT_RD_E | NAND_WAIT_BY_E | NAND_WAIT_RDBY)
 
 #define NAND_CMD_ALE		(1 << 2)
 #define NAND_CMD_CLE		(1 << 3)
@@ -64,13 +71,12 @@ static int ltq_nand_dev_ready(struct mtd_info *mtd)
 
 static void ltq_nand_select_chip(struct mtd_info *mtd, int chip)
 {
-	if (chip == 0) {
-		ltq_setbits(&ltq_nand_regs->con, NAND_CON_NANDM);
-		ltq_setbits(&ltq_nand_regs->con, NAND_CON_LATCH_CS);
-	} else {
-		ltq_clrbits(&ltq_nand_regs->con, NAND_CON_LATCH_CS);
-		ltq_clrbits(&ltq_nand_regs->con, NAND_CON_NANDM);
-	}
+	if (chip == 0)
+		ltq_setbits(&ltq_nand_regs->con,
+			NAND_CON_LATCH_ALL | NAND_CON_NANDM);
+	else
+		ltq_clrbits(&ltq_nand_regs->con,
+			NAND_CON_LATCH_ALL | NAND_CON_NANDM);
 }
 
 static void ltq_nand_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
@@ -79,15 +85,21 @@ static void ltq_nand_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 	unsigned long addr = (unsigned long) chip->IO_ADDR_W;
 
 	if (ctrl & NAND_CTRL_CHANGE) {
-		if (ctrl & NAND_ALE)
+		if (ctrl & NAND_ALE) {
 			addr |= NAND_CMD_ALE;
-		else
+			ltq_setbits(&ltq_nand_regs->con, NAND_CON_LATCH_ALE);
+		} else {
 			addr &= ~NAND_CMD_ALE;
+			ltq_clrbits(&ltq_nand_regs->con, NAND_CON_LATCH_ALE);
+		}
 
-		if (ctrl & NAND_CLE)
+		if (ctrl & NAND_CLE) {
 			addr |= NAND_CMD_CLE;
-		else
+			ltq_setbits(&ltq_nand_regs->con, NAND_CON_LATCH_CLE);
+		} else {
 			addr &= ~NAND_CMD_CLE;
+			ltq_clrbits(&ltq_nand_regs->con, NAND_CON_LATCH_CLE);
+		}
 
 		chip->IO_ADDR_W = (void __iomem *) addr;
 	}
@@ -96,6 +108,15 @@ static void ltq_nand_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 		writeb(cmd, chip->IO_ADDR_W);
 		ltq_nand_wait_ready();
 	}
+}
+
+static void ltq_nand_read_buf(struct mtd_info *mtd, uint8_t *buf, int len)
+{
+	int i;
+	struct nand_chip *chip = mtd->priv;
+
+	for (i = 0; i < len; i++)
+		buf[i] = readb(chip->IO_ADDR_R);
 }
 
 int ltq_nand_init(struct nand_chip *nand)
@@ -108,9 +129,10 @@ int ltq_nand_init(struct nand_chip *nand)
 	nand->dev_ready = ltq_nand_dev_ready;
 	nand->select_chip = ltq_nand_select_chip;
 	nand->cmd_ctrl = ltq_nand_cmd_ctrl;
+	nand->read_buf = ltq_nand_read_buf;
 
 	nand->chip_delay = 30;
-	nand->options = 0;
+	nand->options = NAND_NO_SUBPAGE_WRITE;
 	nand->ecc.mode = NAND_ECC_SOFT;
 
 	/* Enable CS bit in address offset */
@@ -123,4 +145,60 @@ int ltq_nand_init(struct nand_chip *nand)
 __weak int board_nand_init(struct nand_chip *chip)
 {
 	return ltq_nand_init(chip);
+}
+
+void ltq_nand_spl_read_page(struct mtd_info *mtd, unsigned int page,
+				void *dst)
+{
+	ltq_setbits(&ltq_nand_regs->con, NAND_CON_LATCH_ALL);
+
+	/* Command latch cycle */
+	ltq_nand_cmd_ctrl(mtd, NAND_CMD_READ0, NAND_CLE | NAND_CTRL_CHANGE);
+
+	/* Column address */
+	ltq_nand_cmd_ctrl(mtd, 0, NAND_CTRL_ALE | NAND_CTRL_CHANGE);
+	ltq_nand_cmd_ctrl(mtd, 0, NAND_CTRL_ALE);
+
+	/* Row address */
+	ltq_nand_cmd_ctrl(mtd, (page & 0xff), NAND_CTRL_ALE); /* A[19:12] */
+	ltq_nand_cmd_ctrl(mtd, ((page >> 8) & 0xff), NAND_CTRL_ALE); /* A[27:20] */
+#ifdef CONFIG_SYS_NAND_5_ADDR_CYCLE
+	ltq_nand_cmd_ctrl(mtd, ((page >> 16) & 0x0f), NAND_CTRL_ALE); /* A[31:28] */
+#endif
+
+	/* Latch in address */
+	ltq_nand_cmd_ctrl(mtd, NAND_CMD_READSTART, NAND_CTRL_CLE | NAND_CTRL_CHANGE);
+	ltq_nand_cmd_ctrl(mtd, NAND_CMD_NONE, NAND_CTRL_CHANGE);
+
+	while ((ltq_readl(&ltq_nand_regs->wait) & NAND_WAIT_READY) != NAND_WAIT_READY)
+		;
+
+	ltq_nand_read_buf(mtd, dst, CONFIG_SYS_NAND_PAGE_SIZE);
+
+	ltq_clrbits(&ltq_nand_regs->con, NAND_CON_LATCH_ALL);
+
+	while ((ltq_readl(&ltq_nand_regs->wait) & NAND_WAIT_READY) != NAND_WAIT_READY)
+		;
+}
+
+void ltq_nand_spl_load(void *dst)
+{
+	nand_info_t mtd;
+	struct nand_chip nand_chip;
+	unsigned int page, last_page;
+
+	mtd.priv = &nand_chip;
+	nand_chip.IO_ADDR_R = (void  __iomem *)(CONFIG_SYS_NAND_BASE + NAND_CMD_CS);
+	nand_chip.IO_ADDR_W = (void  __iomem *)(CONFIG_SYS_NAND_BASE + NAND_CMD_CS);
+
+	/* Enable NAND, set NAND CS to EBU CS1, enable EBU CS mux */
+	ltq_writel(&ltq_nand_regs->con, NAND_CON_OUT_CS1 | NAND_CON_IN_CS1 |
+		NAND_CON_PRE_P | NAND_CON_WP_P | NAND_CON_SE_P |
+		NAND_CON_CS_P | NAND_CON_CSMUX | NAND_CON_NANDM);
+
+	last_page = CONFIG_SPL_MAX_SIZE / CONFIG_SYS_NAND_PAGE_SIZE;
+	for (page = 1; page < last_page; page++) {
+		ltq_nand_spl_read_page(&mtd, page, dst);
+		dst += CONFIG_SYS_NAND_PAGE_SIZE;
+	}
 }

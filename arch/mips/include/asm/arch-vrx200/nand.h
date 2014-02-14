@@ -9,5 +9,6 @@
 
 struct nand_chip;
 int ltq_nand_init(struct nand_chip *nand);
+void ltq_nand_spl_load(void *dst);
 
 #endif /* __VRX200_NAND_H__ */
