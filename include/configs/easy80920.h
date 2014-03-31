@@ -53,30 +53,44 @@
 #if defined(CONFIG_SYS_BOOT_NOR)
 #define CONFIG_ENV_IS_IN_FLASH
 #define CONFIG_ENV_OVERWRITE
-#define CONFIG_ENV_OFFSET		(384 * 1024)
+#define CONFIG_ENV_OFFSET		(512 * 1024)
 #define CONFIG_ENV_SECT_SIZE		(64 * 1024)
+#define MTDPARTS_DEFAULT		\
+	"mtdparts=ltq_nor:512k(uboot_fix),64k(uboot_cfg);nand-xway:-(ubi)"
 #elif defined(CONFIG_SYS_BOOT_NORSPL)
 #define CONFIG_ENV_IS_IN_FLASH
 #define CONFIG_ENV_OVERWRITE
-#define CONFIG_ENV_OFFSET		(192 * 1024)
+#define CONFIG_ENV_OFFSET		(256 * 1024)
 #define CONFIG_ENV_SECT_SIZE		(64 * 1024)
+#define MTDPARTS_DEFAULT		\
+	"mtdparts=ltq_nor:256k(uboot_fix),64k(uboot_cfg);nand-xway:-(ubi)"
 #elif defined(CONFIG_SYS_BOOT_SFSPL)
 #define CONFIG_ENV_IS_IN_SPI_FLASH
 #define CONFIG_ENV_OVERWRITE
-#define CONFIG_ENV_OFFSET		(192 * 1024)
+#define CONFIG_ENV_OFFSET		(256 * 1024)
 #define CONFIG_ENV_SECT_SIZE		(64 * 1024)
+#define MTDPARTS_DEFAULT		\
+	"mtdparts=spi0.4:256k(uboot_fix),64k(uboot_cfg);nand-xway:-(ubi)"
 #elif defined(CONFIG_SYS_BOOT_NANDSPL)
 #define CONFIG_ENV_IS_IN_NAND
 #define CONFIG_ENV_OVERWRITE
 #define CONFIG_ENV_OFFSET		(256 * 1024)
 #define CONFIG_ENV_SECT_SIZE		(256 * 1024)
+#define MTDPARTS_DEFAULT		\
+	"mtdparts=nand-xway:256k(uboot_fix),256k(uboot_cfg);nand-xway:-(ubi)"
 #else
 #define CONFIG_ENV_IS_NOWHERE
+#define MTDPARTS_DEFAULT		"mtdparts="
 #endif
 
 #define CONFIG_ENV_SIZE			(8 * 1024)
 
 #define CONFIG_LOADADDR			CONFIG_SYS_LOAD_ADDR
+
+/* MTD/UBI */
+#define CONFIG_MTD_PARTITIONS
+#define CONFIG_FLASH_CFI_MTD
+#define MTDIDS_DEFAULT			"nor0=ltq_nor,nand0=nand-xway"
 
 /* Console */
 #define CONFIG_LTQ_ADVANCED_CONSOLE
