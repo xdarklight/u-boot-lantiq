@@ -15,6 +15,13 @@
 /* Compression */
 #define CONFIG_LZMA
 
+/* UBI */
+#define CONFIG_RBTREE
+#define CONFIG_CMD_UBI
+#define CONFIG_CMD_UBIFS
+#define CONFIG_MTD_DEVICE
+#define CONFIG_CMD_MTDPARTS
+
 /* Auto boot */
 #define CONFIG_BOOTDELAY	2
 
