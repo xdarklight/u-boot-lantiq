@@ -41,8 +41,13 @@
 #define CONFIG_ENV_OVERWRITE
 #define CONFIG_ENV_OFFSET		(192 * 1024)
 #define CONFIG_ENV_SECT_SIZE		(64 * 1024)
+#define MTDPARTS_DEFAULT		"mtdparts=nand-xway:-(ubi)"
+#elif defined(CONFIG_SYS_BOOT_SFSPL)
+#define CONFIG_ENV_IS_NOWHERE
+#define MTDPARTS_DEFAULT		"mtdparts=nand-xway:-(ubi)"
 #else
 #define CONFIG_ENV_IS_NOWHERE
+#define MTDPARTS_DEFAULT		"mtdparts="
 #endif
 
 #define CONFIG_ENV_SIZE			(8 * 1024)
@@ -52,6 +57,10 @@
 #define CONFIG_SYS_TEXT_BASE		0x80100000
 #define CONFIG_SKIP_LOWLEVEL_INIT
 #endif
+
+/* MTD/UBI */
+#define CONFIG_MTD_PARTITIONS
+#define MTDIDS_DEFAULT			"nand0=nand-xway"
 
 /* Console */
 #define CONFIG_LTQ_ADVANCED_CONSOLE
