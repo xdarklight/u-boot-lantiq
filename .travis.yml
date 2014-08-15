@@ -1,0 +1,30 @@
+language: c
+
+cache:
+  - apt
+
+before_install:
+  - sudo apt-get install -qq libsdl1.2-dev bc
+
+install:
+  - git clone --depth=1 https://git.kernel.org/pub/scm/utils/dtc/dtc.git /tmp/dtc
+  - make -j4 -C /tmp/dtc
+
+before_script:
+  - ./scripts/install-toolchain.sh -o /tmp -a $TEST_ARCH -b $HOME/.buildman
+  - ./tools/buildman/buildman --list-tool-chains
+
+script:
+  - ./tools/buildman/buildman -o /tmp/buildman -j 2 $TEST_CFG
+
+env:
+  global:
+    - PATH=$PATH:/tmp/dtc
+
+matrix:
+  include:
+    - env: TEST_ARCH=sandbox TEST_CFG=sandbox
+    - env: TEST_ARCH=aarch64 TEST_CFG=aarch64
+    - env: TEST_ARCH=arm TEST_CFG=arm
+    - env: TEST_ARCH=mips TEST_CFG=mips
+    - env: TEST_ARCH=powerpc TEST_CFG=powerpc
