@@ -2,10 +2,19 @@ menu "Lantiq platform"
 	depends on ARCH_LANTIQ
 
 config SYS_SOC
-	default "none"
+	default "xrx200" if SOC_XWAY_XRX200
 
 choice
 	prompt "Lantiq SoC select"
+
+config SOC_XWAY_XRX200
+	bool "Lantiq XWAY XRX200 family"
+	select SUPPORTS_BIG_ENDIAN
+	select SUPPORTS_CPU_MIPS32_R1
+	select SUPPORTS_CPU_MIPS32_R2
+	help
+	  This supports Lantiq XWAY XRX200 family including VRX220, VRX268
+	  and VRX288.
 
 endchoice
 
