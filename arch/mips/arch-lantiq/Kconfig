@@ -2,10 +2,20 @@ menu "Lantiq platform"
 	depends on ARCH_LANTIQ
 
 config SYS_SOC
+	default "danube" if SOC_XWAY_DANUBE
 	default "xrx200" if SOC_XWAY_XRX200
 
 choice
 	prompt "Lantiq SoC select"
+
+config SOC_XWAY_DANUBE
+	bool "Lantiq XWAY Danube family"
+	select SUPPORTS_BIG_ENDIAN
+	select SUPPORTS_CPU_MIPS32_R1
+	select SUPPORTS_CPU_MIPS32_R2
+	help
+	  This supports Lantiq XWAY Danube family including Danube, Danube-S
+	  and Twinpass.
 
 config SOC_XWAY_XRX200
 	bool "Lantiq XWAY XRX200 family"
