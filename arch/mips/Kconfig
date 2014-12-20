@@ -54,8 +54,12 @@ config TARGET_PB1X00
 	select SUPPORTS_CPU_MIPS32_R2
 	select SYS_MIPS_CACHE_INIT_RAM_LOAD
 
+config ARCH_LANTIQ
+	bool "Lantiq based platforms"
 
 endchoice
+
+source "arch/mips/arch-lantiq/Kconfig"
 
 source "board/dbau1x00/Kconfig"
 source "board/imgtec/malta/Kconfig"

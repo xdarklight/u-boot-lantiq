@@ -1,0 +1,34 @@
+menu "Lantiq platform"
+	depends on ARCH_LANTIQ
+
+config SYS_SOC
+	default "none"
+
+choice
+	prompt "Lantiq SoC select"
+
+endchoice
+
+choice
+	prompt "Board select"
+
+endchoice
+
+choice
+	prompt "Boot mode"
+
+config LANTIQ_BOOT_RAM
+	bool "RAM boot"
+	depends on LANTIQ_SUPPORTS_BOOT_RAM
+	help
+	  This builds an image that is linked to a RAM address. Caches are
+	  disabled and environment is built in. The RAM boot mode is suited for
+	  use with EJTAG.
+
+endchoice
+
+config LANTIQ_SUPPORTS_BOOT_RAM
+	bool
+	select CPU_DISABLE_CACHES
+
+endmenu
