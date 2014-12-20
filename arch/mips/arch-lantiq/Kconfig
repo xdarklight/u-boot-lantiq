@@ -21,6 +21,11 @@ endchoice
 choice
 	prompt "Board select"
 
+config TARGET_EASY80920
+	bool "Lantiq EASY80920"
+	depends on SOC_XWAY_XRX200
+	select LANTIQ_SUPPORTS_BOOT_RAM
+
 endchoice
 
 choice
@@ -39,5 +44,7 @@ endchoice
 config LANTIQ_SUPPORTS_BOOT_RAM
 	bool
 	select CPU_DISABLE_CACHES
+
+source "board/lantiq/easy80920/Kconfig"
 
 endmenu
