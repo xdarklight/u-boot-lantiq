@@ -3,3 +3,5 @@
 #
 
 obj-y += cpu.o
+
+obj-$(CONFIG_SOC_XWAY_XRX200) += platdevice-xrx200.o
