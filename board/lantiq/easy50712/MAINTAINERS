@@ -1,0 +1,6 @@
+LANTIQ EASY50712 BOARD
+M:	Daniel Schwierzeck <daniel.schwierzeck@gmail.com>
+S:	Maintained
+F:	board/lantiq/easy50712/
+F:	include/configs/easy50712.h
+F:	configs/easy50712_ram_defconfig
