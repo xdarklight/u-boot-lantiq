@@ -189,6 +189,9 @@ config SWAP_IO_SPACE
 config SYS_MIPS_CACHE_INIT_RAM_LOAD
 	bool
 
+config CPU_DISABLE_CACHES
+	bool
+
 endif
 
 endmenu
