@@ -74,6 +74,12 @@
 #define STATUS_LANTIQ		(STATUS_MIPS34K | STATUS_MIPS32_64)
 #endif
 
+#if defined(CONFIG_TPL) && !defined(CONFIG_TPL_BUILD)
+#define SPL_SMALL	1
+#define SPL_ENTRY	spl_lantiq_small_init
+#else
+#define SPL_ENTRY	spl_lantiq_init
+#endif
 
 	.set noreorder
 
@@ -95,7 +101,6 @@ _start:
 
 	.align	4
 main:
-
 	/* Init Timer */
 	mtc0	zero, CP0_COUNT
 	mtc0	zero, CP0_COMPARE
@@ -115,6 +120,7 @@ main:
 	or	t0, t1
 	mtc0	t0, CP0_STATUS
 
+#ifndef SPL_SMALL
 	/* Initialize CGU */
 	la	t9, ltq_cgu_init
 	jalr	t9
@@ -129,6 +135,7 @@ main:
 	la	t9, mips_cache_reset
 	jalr	t9
 	 nop
+#endif
 
 	/* Clear BSS */
 	la	t1, __bss_start
@@ -143,6 +150,6 @@ main:
 	li	t0, (CONFIG_SPL_STACK_BASE & ~0xF)
 	la	sp, 0(t0)
 
-	la	t9, spl_lantiq_init
+	la	t9, SPL_ENTRY
 	jr	t9
 	 nop

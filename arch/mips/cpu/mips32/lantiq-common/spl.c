@@ -13,6 +13,7 @@
 #include <lzma/LzmaDec.h>
 #include <linux/lzo.h>
 #include <asm/mipsregs.h>
+#include <asm/arch/nand.h>
 
 #if defined(CONFIG_LTQ_SPL_CONSOLE)
 #define spl_has_console		1
@@ -74,12 +75,20 @@
 #ifndef CONFIG_SYS_NAND_PAGE_SIZE
 #define CONFIG_SYS_NAND_PAGE_SIZE	0
 #endif
+#ifndef CONFIG_TPL_TEXT_BASE
+#define CONFIG_TPL_TEXT_BASE		0
+#endif
+#endif
+
+#if defined(CONFIG_TPL) && !defined(CONFIG_TPL_BUILD)
+#define spl_small		1
+#else
+#define spl_small		0
 #endif
 
 #define spl_sync()	__asm__ __volatile__("sync");
 
 struct spl_image {
-	ulong data_addr;
 	ulong entry_addr;
 	ulong data_size;
 	ulong entry_size;
@@ -152,14 +161,13 @@ static int spl_parse_image(const image_header_t *hdr, struct spl_image *spl)
 		return -1;
 	}
 
-	spl->data_addr += image_get_header_size();
 	spl->entry_addr = image_get_load(hdr);
 	spl->data_size = image_get_data_size(hdr);
 	spl->data_crc = image_get_dcrc(hdr);
 	spl->comp = image_get_comp(hdr);
 
-	spl_debug("SPL: data %08lx, size %lu, entry %08lx, comp %u\n",
-		spl->data_addr, spl->data_size, spl->entry_addr, spl->comp);
+	spl_debug("SPL: size %lu, entry %08lx, comp %u\n",
+		spl->data_size, spl->entry_addr, spl->comp);
 
 	return 0;
 }
@@ -194,13 +202,11 @@ static void spl_lzma_free(void *p, void *addr)
 {
 }
 
-static int spl_copy_image(struct spl_image *spl)
+static int spl_copy_image(struct spl_image *spl, const void *src_addr)
 {
 	spl_puts("SPL: copying U-Boot to RAM\n");
 
-	memcpy((void *) spl->entry_addr, (const void *) spl->data_addr,
-		spl->data_size);
-
+	memcpy((void *) spl->entry_addr, src_addr, spl->data_size);
 	spl->entry_size = spl->data_size;
 
 	return 0;
@@ -270,7 +276,7 @@ static int spl_load_spi_flash(struct spl_image *spl)
 	struct spi_flash sf = { 0 };
 	image_header_t hdr;
 	int ret;
-	unsigned long loadaddr;
+	unsigned long loadaddr, addr;
 
 	/*
 	 * Image format:
@@ -281,7 +287,7 @@ static int spl_load_spi_flash(struct spl_image *spl)
 	 * - 64 byte U-Boot mkimage header
 	 * - U-Boot binary
 	 */
-	spl->data_addr = image_copy_end() - CONFIG_SPL_TEXT_BASE + 24;
+	addr = image_copy_end() - CONFIG_SPL_TEXT_BASE + 24;
 
 	spl_puts("SPL: probing SPI flash\n");
 
@@ -290,13 +296,13 @@ static int spl_load_spi_flash(struct spl_image *spl)
 	if (ret)
 		return ret;
 
-	spl_debug("SPL: reading image header at offset %lx\n", spl->data_addr);
+	spl_debug("SPL: reading image header at offset %lx\n", addr);
 
-	ret = spi_flash_read(&sf, spl->data_addr, sizeof(hdr), &hdr);
+	ret = spi_flash_read(&sf, addr, sizeof(hdr), &hdr);
 	if (ret)
 		return ret;
 
-	spl_debug("SPL: checking image header at offset %lx\n", spl->data_addr);
+	spl_debug("SPL: checking image header\n");
 
 	ret = spl_parse_image(&hdr, spl);
 	if (ret)
@@ -309,8 +315,9 @@ static int spl_load_spi_flash(struct spl_image *spl)
 
 	spl_puts("SPL: loading U-Boot to RAM\n");
 
-	ret = spi_flash_read(&sf, spl->data_addr, spl->data_size,
-				(void *) loadaddr);
+	/* skip U-Boot mkimage header */
+	addr += image_get_header_size();
+	ret = spi_flash_read(&sf, addr, spl->data_size, (void *) loadaddr);
 
 	if (!spl_check_data(spl, loadaddr))
 		return -1;
@@ -325,6 +332,7 @@ static int spl_load_nor_flash(struct spl_image *spl)
 {
 	const image_header_t *hdr;
 	int ret;
+	unsigned long addr;
 
 	/*
 	 * Image format:
@@ -333,7 +341,7 @@ static int spl_load_nor_flash(struct spl_image *spl)
 	 * - 64 byte U-Boot mkimage header
 	 * - U-Boot binary
 	 */
-	spl->data_addr = image_copy_end();
+	addr = image_copy_end();
 	hdr = (const image_header_t *) image_copy_end();
 
 	spl_debug("SPL: checking image header at address %p\n", hdr);
@@ -342,10 +350,13 @@ static int spl_load_nor_flash(struct spl_image *spl)
 	if (ret)
 		return ret;
 
+	/* skip U-Boot mkimage header */
+	addr += image_get_header_size();
+
 	if (spl_is_compressed(spl))
-		ret = spl_uncompress(spl, spl->data_addr);
+		ret = spl_uncompress(spl, addr);
 	else
-		ret = spl_copy_image(spl);
+		ret = spl_copy_image(spl, (const void *)addr);
 
 	return ret;
 }
@@ -354,7 +365,7 @@ static int spl_load_nand_flash(struct spl_image *spl)
 {
 	image_header_t *hdr;
 	int ret;
-	unsigned long loadaddr;
+	unsigned long loadaddr, addr;
 
 	/*
 	 * Image format:
@@ -366,17 +377,15 @@ static int spl_load_nand_flash(struct spl_image *spl)
 	 * - 64 byte U-Boot mkimage header
 	 * - U-Boot binary
 	 */
-	spl->data_addr = CONFIG_SYS_NAND_U_BOOT_OFFS;
+	addr = CONFIG_SYS_NAND_U_BOOT_OFFS;
 
 	spl_puts("SPL: initializing NAND flash\n");
 	nand_init();
 
-	spl_debug("SPL: reading image header at page offset %lx\n",
-		  spl->data_addr);
+	spl_debug("SPL: reading image header at page offset %lx\n", addr);
 
 	hdr = (image_header_t *) CONFIG_LOADADDR;
-	ret = nand_spl_load_image(spl->data_addr,
-				  CONFIG_SYS_NAND_PAGE_SIZE, hdr);
+	ret = nand_spl_load_image(addr, CONFIG_SYS_NAND_PAGE_SIZE, hdr);
 	if (ret)
 		return ret;
 
@@ -389,15 +398,14 @@ static int spl_load_nand_flash(struct spl_image *spl)
 	if (spl_is_compressed(spl))
 		loadaddr = CONFIG_LOADADDR;
 	else
-		loadaddr = spl->entry_addr;
+		loadaddr = spl->entry_addr - image_get_header_size();
 
 	spl_puts("SPL: loading U-Boot to RAM\n");
 
-	ret = nand_spl_load_image(spl->data_addr, spl->data_size,
-				  (void *) loadaddr);
+	ret = nand_spl_load_image(addr, spl->data_size, (void *) loadaddr);
 
 	if (spl_is_compressed(spl))
-		ret = spl_uncompress(spl, loadaddr);
+		ret = spl_uncompress(spl, loadaddr + image_get_header_size());
 
 	return ret;
 }
@@ -467,4 +475,14 @@ hang:
 
 	for (;;)
 		;
+}
+
+void __noreturn spl_lantiq_small_init(void)
+{
+	void (*uboot)(void) __noreturn;
+
+	ltq_nand_spl_load((void *)CONFIG_TPL_TEXT_BASE);
+
+	uboot = (void *)CONFIG_TPL_TEXT_BASE;
+	uboot();
 }
