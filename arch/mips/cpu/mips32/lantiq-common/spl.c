@@ -18,6 +18,8 @@
 #include <asm/lantiq/cpu.h>
 #include <asm/lantiq/mem.h>
 
+#define UBOOT_MAX_UNCOMPRESSED_SIZE 0x200000
+
 struct spl_image {
 	ulong entry_addr;
 	ulong data_size;
@@ -114,7 +116,7 @@ static int spl_copy_image(struct spl_image *spl, unsigned long addr)
 
 static int spl_uncompress(struct spl_image *spl, unsigned long addr)
 {
-	size_t len;
+	size_t len = UBOOT_MAX_UNCOMPRESSED_SIZE;
 	int ret;
 
 	spl_puts("SPL: decompressing U-Boot with LZO\n");
