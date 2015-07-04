@@ -4,7 +4,7 @@
 # Copyright (C) 2012 Daniel Schwierzeck <daniel.schwierzeck@gmail.com>
 #
 # Usage:
-# awk -f lantiq_ram_init_uart.awk -v soc=<danube|ar9|vr9> PATH_TO_BOARD/ddr_settings.h
+# awk -f lantiq_ram_init_uart.awk -v soc=<danube|ar9|vr9|ar10> PATH_TO_BOARD/ddr_settings.h
 #
 # SPDX-License-Identifier:	GPL-2.0+
 #
@@ -47,6 +47,14 @@ function mc_ar9_prologue()
 	print "0xbf801030", "0x0"
 }
 
+function mc_ar10_prologue()
+{
+	print "0xbf106c98", "0x94"
+
+	/* Put memory controller in inactive mode */
+	print "0xbf801000", "0x0"
+}
+
 function mc_ddr1_epilogue()
 {
 	/* Set start bit of DDR memory controller */
@@ -66,6 +74,12 @@ function mc_ddr2_epilogue(mc_ccr07_value)
 	printf("0xbf401070 0x%x\n", mc_ccr07_value)
 }
 
+function mc_ar10_ddr2_epilogue()
+{
+	/* Put memory controller in active mode */
+	print "0xbf801000", "0x401"
+}
+
 BEGIN {
 	switch (soc) {
 	case "danube":
@@ -83,6 +97,11 @@ BEGIN {
 		print_header()
 		mc_ddr2_prologue()
 		break
+	case "ar10":
+		reg_base = 0xbf801000
+		print_header()
+		mc_ar10_prologue()
+		break
 	default:
 		print "Invalid or no value for soc specified!"
 		exit 1
@@ -92,6 +111,9 @@ BEGIN {
 }
 
 /^#define/ {
+	if (tolower($2) == "mc_phyr0_value")
+		reg_base += 0x80
+
 	/* CCR07 contains MC enable bit and must not be set here */
 	if (tolower($2) == "mc_ccr07_value")
 		mc_ccr07_value = strtonum($3)
@@ -111,6 +133,9 @@ END {
 		break
 	case "vr9":
 		mc_ddr2_epilogue(mc_ccr07_value)
+		break
+	case "ar10":
+		mc_ar10_ddr2_epilogue()
 		break
 	default:
 	}
