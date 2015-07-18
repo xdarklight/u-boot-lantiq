@@ -26,7 +26,6 @@
 
 #define LTQ_BOOTROM_BASE		0x1F000000 // TODO: unknown - assumed ???
 #define LTQ_PMU_BASE			0x1F102000
-#define LTQ_DCDC_BASE			0x1F106A00 // TODO: does this really exist on xrx300?
 #define LTQ_CGU_BASE			0x1F103000
 #define LTQ_MPS_BASE			0x1F107000
 #define LTQ_CHIPID_BASE			(LTQ_MPS_BASE + 0x340)
