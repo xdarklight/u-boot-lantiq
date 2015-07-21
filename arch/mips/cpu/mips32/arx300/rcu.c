@@ -59,8 +59,8 @@ struct ltq_rcu_regs {
 	u32	usb_ana_cfg1a;	/* USB analog config 1a */
 	u32	usb_ana_cfg1b;	/* USB analog config 1b */
 	u32	gcc;		/* General CPU config */
-	u32	gf_mdio_add;	/* TODO, assumed: GPHY0/1 MDIO address */
-	u32	req2;		/* TODO, assumed: SLIC and USB reset request */
+	u32	gf_mdio_add;	/* GPHY0/1 MDIO address */
+	u32	req2;		/* SLIC and USB reset request */
 	u32	ahb_endian;	/* AHB bus endianess */
 	u32	rsvd1[2];
 	u32	gfs_add1;	/* GPHY1 firmware base addr */
