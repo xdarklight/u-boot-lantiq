@@ -52,7 +52,7 @@ struct ltq_rcu_regs {
 	u32	gp_strap;	/* GPIO strapping */
 	u32	gfs_add0;	/* GPHY0 firmware base addr */
 	u32	stat2;		/* SLIC and USB reset status */
-	u32	ppm;		/* ??? */
+	u32	ppm;		/* TODO: ARX300 unknown */
 	u32	ppe_conf;	/* PPE ethernet config */
 	u32	pcie_phy_con;	/* PCIE PHY config/status */
 	u32	usb1_cfg;	/* USB1 configure */
@@ -65,7 +65,7 @@ struct ltq_rcu_regs {
 	u32	rsvd1[2];
 	u32	gfs_add1;	/* GPHY1 firmware base addr */
 	u32	pci_phy2_con;	/* PCI PHY2 config/status */
-	u32	pcm_fcc;	/* ??? */
+	u32	pcm_fcc;	/* TODO: ARX300 unknown */
 	u32	rsvd2[18];
 	u32	gfs_add2;	/* GPHY2 firmware base addr */
 };

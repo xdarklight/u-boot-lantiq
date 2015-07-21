@@ -99,7 +99,7 @@ int ltq_pm_enable(enum ltq_pm_modules module)
 
 	timebase = get_timer(0);
 
-	// TODO: UGW basically has this: if (module == LTQ_PM_ETH) ltq_setbits(&ltq_pmu_regs->pwdcr1, 0xE0000000);
+	// TODO: ARX300 UGW basically has this: if (module == LTQ_PM_ETH) ltq_setbits(&ltq_pmu_regs->pwdcr1, 0xE0000000);
 
 	do {
 		sr = ltq_readl(&ltq_pmu_regs->sr);

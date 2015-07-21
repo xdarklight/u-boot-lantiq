@@ -10,9 +10,9 @@
 #define __ARX300_SOC_H__
 
 #define LTQ_ASC0_BASE			0x1E100400
-#define LTQ_SPI_BASE			0x1E100800 // TODO: unknown - assumed ???
+#define LTQ_SPI_BASE			0x1E100800 // TODO: ARX300 unknown - assumed ???
 #define LTQ_GPIO_BASE			0x1E100B00
-#define LTQ_SSIO_BASE			0x1E100B00 // TODO: 0x1E100BB0 - typo in UGW u-boot???
+#define LTQ_SSIO_BASE			0x1E100B00 // TODO: ARX300 0x1E100BB0 - typo in UGW u-boot???
 #define LTQ_ASC1_BASE			0x1E100C00
 #define LTQ_DMA_BASE			0x1E104100
 
@@ -24,7 +24,7 @@
 #define LTQ_PPE_BASE			0x1E180000
 #define LTQ_SWITCH_BASE			0x1E108000
 
-#define LTQ_BOOTROM_BASE		0x1F000000 // TODO: unknown - assumed ???
+#define LTQ_BOOTROM_BASE		0x1F000000 // TODO: ARX300 unknown - assumed ???
 #define LTQ_PMU_BASE			0x1F102000
 #define LTQ_CGU_BASE			0x1F103000
 #define LTQ_MPS_BASE			0x1F107000
