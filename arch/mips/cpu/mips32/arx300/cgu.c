@@ -26,6 +26,7 @@
 #define LTQ_CGU_GPHY_CFG_MASK		0xFFFFFFFF
 
 #define LTQ_CHIPID_CFG			(LTQ_CHIPID_BASE + 0x10)
+#define CHIPID_CFG_IF_CLK_125		(1 << 17)
 
 struct ltq_cgu_regs {
 	u32	rsvd0;
@@ -52,6 +53,7 @@ struct ltq_cgu_regs {
 
 static struct ltq_cgu_regs *ltq_cgu_regs =
 	(struct ltq_cgu_regs *) CKSEG1ADDR(LTQ_CGU_BASE);
+static u32 *ltq_chipid_cfg = (void *) CKSEG1ADDR(LTQ_CHIPID_CFG);
 
 static inline u32 ltq_cgu_sys_readl(u32 mask, u32 shift)
 {
@@ -76,17 +78,12 @@ unsigned long ltq_get_io_region_clock(void)
 			clk = CLOCK_300_MHZ;
 			break;
 		case 2:
-#if 0
-			/* FIXME: check BSP_MPS_ID_CFG, if bit 17 is set,
+			/* check BSP_MPS_ID_CFG, if bit 17 is set,
 			 * treat FPI clock as 125 instead of 150 */
-			if (ltq_readl(LTQ_CHIPID_CFG) & (1 << 17)) {
+			if (*ltq_chipid_cfg & CHIPID_CFG_IF_CLK_125)
 				clk = CLOCK_125_MHZ;
-			} else {
+			else
 				clk = CLOCK_150_MHZ;
-			}
-#else
-			clk = CLOCK_150_MHZ;
-#endif
 			break;
 		case 5:
 			clk = CLOCK_250_MHZ;
