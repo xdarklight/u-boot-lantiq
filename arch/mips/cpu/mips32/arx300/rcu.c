@@ -41,8 +41,10 @@
 #define LTQ_RCU_RD_CPU		(1 << 1)	/* CPU subsystem */
 #define LTQ_RCU_RD_HRST		(1 << 0)	/* HW reset via HRST pin */
 
-#define LTQ_RCU_STAT_BOOT_SHIFT		17
-#define LTQ_RCU_STAT_BOOT_MASK		(0xF << LTQ_RCU_STAT_BOOT_SHIFT)
+#define LTQ_RCU_STAT_BOOT_LO_SHIFT	17
+#define LTQ_RCU_STAT_BOOT_LO_MASK	(0xF << LTQ_RCU_STAT_BOOT_LO_SHIFT)
+#define LTQ_RCU_STAT_BOOT_HI_SHIFT	13
+#define LTQ_RCU_STAT_BOOT_HI_MASK	(0x1 << LTQ_RCU_STAT_BOOT_HI_SHIFT)
 
 struct ltq_rcu_regs {
 	u32	rsvd0[4];
@@ -131,36 +133,28 @@ int ltq_reset_deactivate(enum ltq_reset_modules module)
 
 enum ltq_boot_select ltq_boot_select(void)
 {
-#if 0
 	u32 stat;
-	unsigned int bootstrap;
+	unsigned int bootstrap_hi, bootstrap_lo, bootstrap;
 
+	// TODO: ARX300 - check if the bootstrap algo is correct
+	/*
+	 * Boot select value is built from bits 20-17 and bit 13.
+	 */
 	stat = ltq_readl(&ltq_rcu_regs->stat);
-	bootstrap = (stat & LTQ_RCU_STAT_BOOT_MASK) >> LTQ_RCU_STAT_BOOT_SHIFT;
+	bootstrap_hi = (stat & LTQ_RCU_STAT_BOOT_HI_MASK) >> LTQ_RCU_STAT_BOOT_HI_SHIFT;
+	bootstrap_lo = (stat & LTQ_RCU_STAT_BOOT_LO_MASK) >> LTQ_RCU_STAT_BOOT_LO_SHIFT;
+	bootstrap = (bootstrap_hi << 4) | bootstrap_lo;
 
+	// TODO: ARX300 - are these values correct + what about the missing ones?
 	switch (bootstrap) {
-	case 0:
-		return BOOT_NOR_NO_BOOTROM;
-	case 1:
-		return BOOT_RGMII1;
-	case 2:
-		return BOOT_NOR;
-	case 4:
-		return BOOT_UART_NO_EEPROM;
 	case 6:
-		return BOOT_PCI;
-	case 8:
-		return BOOT_UART;
-	case 10:
-		return BOOT_SPI;
-	case 12:
 		return BOOT_NAND;
+	case 22:
+		return BOOT_UART;
 	default:
+		printf("(%d) ", bootstrap);
 		return BOOT_UNKNOWN;
 	}
-#else
-	return BOOT_UNKNOWN;
-#endif
 }
 
 void ltq_rcu_gphy_boot(unsigned int id, ulong addr)
