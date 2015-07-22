@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Daniel Schwierzeck, daniel.schwierzeck@gmail.com
+ * Copyright (C) 2015 Martin Blumenstingl <martin.blumenstingl@googlemail.com>
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
@@ -9,126 +9,189 @@
 #include <asm/lantiq/pm.h>
 #include <asm/arch/soc.h>
 
-#define LTQ_PMU_PWDCR_PCIELOC_EN	(1 << 31)
-#define LTQ_PMU_PWDCR_GPHY		(1 << 30)
-#define LTQ_PMU_PWDCR_PPE_TOP		(1 << 29)
-#define LTQ_PMU_PWDCR_SWITCH		(1 << 28)
-#define LTQ_PMU_PWDCR_USB1		(1 << 27)
-#define LTQ_PMU_PWDCR_USB1_PHY		(1 << 26)
-#define LTQ_PMU_PWDCR_TDM		(1 << 25)
-#define LTQ_PMU_PWDCR_PPE_DPLUS		(1 << 24)
-#define LTQ_PMU_PWDCR_PPE_DPLUM		(1 << 23)
-#define LTQ_PMU_PWDCR_PPE_EMA		(1 << 22)
-#define LTQ_PMU_PWDCR_PPE_TC		(1 << 21)
-#define LTQ_PMU_PWDCR_DEU		(1 << 20)
-#define LTQ_PMU_PWDCR_PPE_SLL01		(1 << 19)
-#define LTQ_PMU_PWDCR_PPE_QSB		(1 << 18)
-#define LTQ_PMU_PWDCR_UART1		(1 << 17)
-#define LTQ_PMU_PWDCR_SDIO		(1 << 16)
-#define LTQ_PMU_PWDCR_AHBM		(1 << 15)
-#define LTQ_PMU_PWDCR_FPIM		(1 << 14)
-#define LTQ_PMU_PWDCR_AHBS		(1 << 13)
-#define LTQ_PMU_PWDCR_GPTC		(1 << 12)
-#define LTQ_PMU_PWDCR_LEDC		(1 << 11)
-#define LTQ_PMU_PWDCR_EBU		(1 << 10)
-#define LTQ_PMU_PWDCR_DSL		(1 << 9)
-#define LTQ_PMU_PWDCR_SPI		(1 << 8)
-#define LTQ_PMU_PWDCR_USIF		(1 << 7)
-#define LTQ_PMU_PWDCR_USB0		(1 << 6)
-#define LTQ_PMU_PWDCR_DMA		(1 << 5)
-#define LTQ_PMU_PWDCR_PCI		(1 << 4)
-#define LTQ_PMU_PWDCR_DFEV1		(1 << 3)
-#define LTQ_PMU_PWDCR_DFEV0		(1 << 2)
-#define LTQ_PMU_PWDCR_FPIS		(1 << 1)
-#define LTQ_PMU_PWDCR_USB0_PHY		(1 << 0)
-
-#define LTQ_PMU_PWDCR_RESERVED		(LTQ_PMU_PWDCR_AHBS | LTQ_PMU_PWDCR_PCI)
+typedef enum {
+	LTQ_PMU_BIT_DFEV0	= 2,
+	LTQ_PMU_BIT_DFEV1	= 3,
+	LTQ_PMU_BIT_DMA		= 5,
+	LTQ_PMU_BIT_USB0_CTRL	= 6,
+	LTQ_PMU_BIT_USIF	= 7,
+	LTQ_PMU_BIT_SPI		= 8,
+	LTQ_PMU_BIT_DSL_DFE	= 9,
+	LTQ_PMU_BIT_EBU		= 10,
+	LTQ_PMU_BIT_LEDC	= 11,
+	LTQ_PMU_BIT_GPTC	= 12,
+	LTQ_PMU_BIT_UART1	= 17,
+	LTQ_PMU_BIT_DEU		= 20,
+	LTQ_PMU_BIT_PPE_TC	= 21,
+	LTQ_PMU_BIT_PPE_EMA	= 22,
+	LTQ_PMU_BIT_PPE_DPLUS	= 24,
+	LTQ_PMU_BIT_TDM		= 25,
+	LTQ_PMU_BIT_USB1_CTRL	= 27,
+	LTQ_PMU_BIT_SWITCH	= 28,
+	LTQ_PMU_BIT_PCIE0_CTRL	= 33,
+	LTQ_PMU_BIT_PDI0	= 36,
+	LTQ_PMU_BIT_MSI0	= 37,
+	LTQ_PMU_BIT_DDR_CKE	= 38,
+	LTQ_PMU_BIT_PCIE1_CTRL	= 49,
+	LTQ_PMU_BIT_PDI1	= 52,
+	LTQ_PMU_BIT_MSI1	= 53,
+	LTQ_PMU_BIT_PCIE2_CTRL	= 57, /* GRX390 only */
+	LTQ_PMU_BIT_PCIE2_PDI2	= 57, /* GRX390 only */
+	LTQ_PMU_BIT_MSI2	= 59, /* GRX390 only */
+	LTQ_PMU_BIT_USB0_PHY	= 64,
+	LTQ_PMU_BIT_USB1_PHY	= 64,
+	LTQ_PMU_BIT_PCIE1_PHY	= 73,
+	LTQ_PMU_BIT_PCIE2_PHY	= 74, /* GRX390 only */
+	LTQ_PMU_BIT_ASDL_AFE	= 80,
+	LTQ_PMU_BIT_DCDC_2V5	= 81, /* always on */
+	LTQ_PMU_BIT_DCDC_1VX	= 82, /* always on */
+	LTQ_PMU_BIT_DCDC_1V0	= 83, /* always on */
+	LTQ_PMU_BIT_PCIE0_PHY	= 72,
+} pmu_bit;
 
 struct ltq_pmu_regs {
-	u32	rsvd0[7];
-	u32	pwdcr;		/* Power down control */
-	u32	sr;		/* Power down status */
-	u32	pwdcr1;		/* Power down control 1 */
-	u32	sr1;		/* Power down status 1 */
+	u32	rsvd0[8];
+	u32	sr0;		/* module 0 status register (IFX_PMU_CLKGSR1) */
+	u32	pwdcr0;		/* module 0 power up control (IFX_PMU_CLKGCR1_A) */
+	u32	pwdcrb0;	/* module 0 power down control (IFX_PMU_CLKGCR1_B) */
+	u32	sr1;		/* module 1 status register (IFX_PMU_CLKGSR2) */
+	u32	pwdcr1;		/* module 1 power up control (IFX_PMU_CLKGCR2_A) */
+	u32	pwdcrb1;	/* module 1 power down control (IFX_PMU_CLKGCR2_B) */
+	u32	sr2;		/* analog module status register (IFX_PMU_ANALOG_SR) */
+	u32	pwdcr2;		/* analog module power up control (IFX_PMU_ANALOGCR_A) */
+	u32	pwdcrb2;	/* analog module power down control (IFX_PMU_ANALOGCR_B) */
 };
 
 static struct ltq_pmu_regs *ltq_pmu_regs =
 	(struct ltq_pmu_regs *) CKSEG1ADDR(LTQ_PMU_BASE);
 
-u32 ltq_pm_map(enum ltq_pm_modules module)
+int ltq_pm_enable_function_bit(pmu_bit bit)
 {
+	u32 *pwdcr;
+	u32 *sr;
+	u32 module;
 	u32 val;
-
-	switch (module) {
-	case LTQ_PM_CORE:
-		val = LTQ_PMU_PWDCR_UART1 | LTQ_PMU_PWDCR_FPIM |
-			LTQ_PMU_PWDCR_LEDC | LTQ_PMU_PWDCR_EBU;
-		break;
-	case LTQ_PM_DMA:
-		val = LTQ_PMU_PWDCR_DMA;
-		break;
-	case LTQ_PM_ETH:
-		val = LTQ_PMU_PWDCR_GPHY | LTQ_PMU_PWDCR_PPE_TOP |
-			LTQ_PMU_PWDCR_SWITCH | LTQ_PMU_PWDCR_PPE_DPLUS |
-			LTQ_PMU_PWDCR_PPE_DPLUM | LTQ_PMU_PWDCR_PPE_EMA |
-			LTQ_PMU_PWDCR_PPE_TC | LTQ_PMU_PWDCR_PPE_SLL01 |
-			LTQ_PMU_PWDCR_PPE_QSB;
-		break;
-	case LTQ_PM_SPI:
-		val = LTQ_PMU_PWDCR_SPI;
-		break;
-	default:
-		val = 0;
-		break;
-	}
-
-	return val;
-}
-
-int ltq_pm_enable(enum ltq_pm_modules module)
-{
 	const unsigned long timeout = 1000;
 	unsigned long timebase;
-	u32 sr, val;
 
-	val = ltq_pm_map(module);
-	if (unlikely(!val))
+	module = bit / 32;
+	val = 1 << (bit % 32);
+
+	switch (module) {
+	case 0:
+		pwdcr = &ltq_pmu_regs->pwdcr0;
+		sr = &ltq_pmu_regs->sr0;
+		break;
+	case 1:
+		pwdcr = &ltq_pmu_regs->pwdcr1;
+		sr = &ltq_pmu_regs->sr1;
+		break;
+	case 2:
+		pwdcr = &ltq_pmu_regs->pwdcr2;
+		sr = &ltq_pmu_regs->sr2;
+		break;
+	default:
 		return 1;
+	}
 
-	ltq_clrbits(&ltq_pmu_regs->pwdcr, val);
+	/* enable the function */
+	ltq_writel(pwdcr, val);
 
 	timebase = get_timer(0);
 
-	// TODO: ARX300 UGW basically has this: if (module == LTQ_PM_ETH) ltq_setbits(&ltq_pmu_regs->pwdcr1, 0xE0000000);
-
 	do {
-		sr = ltq_readl(&ltq_pmu_regs->sr);
-		if (~sr & val)
+		if (ltq_readl(sr) & val)
 			return 0;
 	} while (get_timer(timebase) < timeout);
 
 	return 1;
 }
 
+int ltq_pm_disable_function_bit(pmu_bit bit)
+{
+	u32 *pwdcrb;
+	u32 *sr;
+	u32 module;
+	u32 val;
+	const unsigned long timeout = 1000;
+	unsigned long timebase;
+
+	module = bit / 32;
+	val = 1 << (bit % 32);
+
+	switch (module) {
+	case 0:
+		pwdcrb = &ltq_pmu_regs->pwdcrb0;
+		sr = &ltq_pmu_regs->sr0;
+		break;
+	case 1:
+		pwdcrb = &ltq_pmu_regs->pwdcrb1;
+		sr = &ltq_pmu_regs->sr1;
+		break;
+	case 2:
+		pwdcrb = &ltq_pmu_regs->pwdcrb2;
+		sr = &ltq_pmu_regs->sr2;
+		break;
+	default:
+		return 1;
+	}
+
+	/* disable the function */
+	ltq_writel(pwdcrb, val);
+
+	timebase = get_timer(0);
+
+	do {
+		if ((ltq_readl(sr) & val) == 0)
+			return 0;
+	} while (get_timer(timebase) < timeout);
+
+	return 1;
+}
+
+int ltq_pm_apply(enum ltq_pm_modules module, int (*apply_pmu_bit_func)(pmu_bit))
+{
+	int ret;
+
+	switch (module) {
+	case LTQ_PM_CORE:
+		ret = 0;
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_UART1);
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_LEDC);
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_EBU);
+		break;
+	case LTQ_PM_DMA:
+		ret = apply_pmu_bit_func(LTQ_PMU_BIT_DMA);
+		break;
+	case LTQ_PM_ETH:
+		ret = 0;
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_SWITCH);
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_PPE_TC);
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_PPE_EMA);
+		ret |= apply_pmu_bit_func(LTQ_PMU_BIT_PPE_DPLUS);
+		break;
+	case LTQ_PM_SPI:
+		ret = apply_pmu_bit_func(LTQ_PMU_BIT_SPI);
+		break;
+	default:
+		ret = 1;
+		break;
+	}
+
+	return ret;
+}
+
+int ltq_pm_enable(enum ltq_pm_modules module)
+{
+	return ltq_pm_apply(module, ltq_pm_enable_function_bit);
+}
+
 int ltq_pm_disable(enum ltq_pm_modules module)
 {
-	u32 val;
-
-	val = ltq_pm_map(module);
-	if (unlikely(!val))
-		return 1;
-
-	ltq_setbits(&ltq_pmu_regs->pwdcr, val);
-
-	return 0;
+	return ltq_pm_apply(module, ltq_pm_disable_function_bit);
 }
 
 void ltq_pmu_init(void)
 {
-	u32 set, clr;
-
-	clr = ltq_pm_map(LTQ_PM_CORE);
-	set = ~(LTQ_PMU_PWDCR_RESERVED | clr);
-
-	ltq_clrsetbits(&ltq_pmu_regs->pwdcr, clr, set);
+	ltq_pm_apply(LTQ_PM_CORE, ltq_pm_enable_function_bit);
 }
