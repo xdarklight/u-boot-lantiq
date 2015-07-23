@@ -104,9 +104,9 @@ unsigned long ltq_get_sys_clock(void)
 	unsigned long sys_clk;
 
 	if (ltq_cgu_sys_readl(LTQ_CGU_SYS_CLK_MASK, LTQ_CGU_SYS_CLK_SHIFT))
-		sys_clk = CLOCK_500_MHZ;
-	else
 		sys_clk = CLOCK_600_MHZ;
+	else
+		sys_clk = CLOCK_500_MHZ;
 
 	return sys_clk;
 }
